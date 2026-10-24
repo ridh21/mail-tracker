@@ -1,0 +1,19 @@
+{
+  "name": "mail-tracker",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "dev:worker": "pnpm --filter @mail-tracker/worker dev",
+    "dev:dashboard": "pnpm --filter @mail-tracker/dashboard dev",
+    "dev:extension": "pnpm --filter @mail-tracker/extension dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "deploy": "pnpm --filter @mail-tracker/dashboard build && pnpm --filter @mail-tracker/worker run deploy",
+    "secrets:generate": "node scripts/generate-secrets.mjs"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
+}

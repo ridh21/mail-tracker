@@ -1,0 +1,44 @@
+:root {
+  --bg: #ffffff;
+  --fg: #1f1f1f;
+  --muted: #5f6368;
+  --line: #eceff1;
+  --accent: #1a73e8;
+  --tick: #34b7f1;
+  --danger: #d93025;
+  color-scheme: light dark;
+  font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1f1f1f;
+    --fg: #e8eaed;
+    --muted: #9aa0a6;
+    --line: #2d2f31;
+    --accent: #8ab4f8;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; width: 300px; background: var(--bg); color: var(--fg); }
+main { padding: 14px 16px 16px; }
+header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+header svg { flex: none; }
+h1 { font-size: 14px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+.sub { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rows { border-top: 1px solid var(--line); }
+label.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+label.row small { display: block; color: var(--muted); font-size: 11.5px; }
+input[type="checkbox"] { appearance: none; flex: none; width: 30px; height: 18px; border-radius: 9px; background: var(--line); position: relative; cursor: pointer; transition: background 160ms cubic-bezier(0.23, 1, 0.32, 1); }
+input[type="checkbox"]::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / 0.2); transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1); }
+input[type="checkbox"]:checked { background: var(--accent); }
+input[type="checkbox"]:checked::after { transform: translateX(12px); }
+input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.actions { display: flex; gap: 8px; margin-top: 14px; }
+button, a.btn { font: inherit; font-weight: 500; border: 0; border-radius: 8px; padding: 8px 12px; cursor: pointer; text-decoration: none; text-align: center; transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1), opacity 120ms; }
+button:active, a.btn:active { transform: scale(0.97); }
+.primary { background: var(--accent); color: var(--bg); flex: 1; }
+.ghost { background: transparent; color: var(--muted); }
+.ghost:hover { color: var(--fg); }
+.error { color: var(--danger); font-size: 12px; margin-top: 10px; }
+p { margin: 0 0 12px; color: var(--muted); }

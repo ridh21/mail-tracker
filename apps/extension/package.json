@@ -1,0 +1,25 @@
+{
+  "name": "@mail-tracker/extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wxt",
+    "build": "wxt build",
+    "zip": "wxt zip",
+    "typecheck": "wxt prepare && tsc --noEmit -p .",
+    "icons": "node scripts/generate-icons.mjs",
+    "postinstall": "wxt prepare"
+  },
+  "dependencies": {
+    "@inboxsdk/core": "^2.2.32",
+    "@mail-tracker/shared": "workspace:*",
+    "kefir": "^3.8.8"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.3.6",
+    "@types/kefir": "^3.8.11",
+    "vite": "^8.3.5",
+    "wxt": "^0.21.4"
+  }
+}

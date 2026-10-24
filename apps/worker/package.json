@@ -1,0 +1,26 @@
+{
+  "name": "@mail-tracker/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler d1 migrations apply mail-tracker --remote && wrangler deploy",
+    "db:migrate:local": "wrangler d1 migrations apply mail-tracker --local",
+    "cf-typegen": "wrangler types --strict-vars=false",
+    "typecheck": "tsc -p .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@mail-tracker/shared": "workspace:*",
+    "hono": "^4.13.13",
+    "jose": "^6.2.13",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.4.6",
+    "@types/node": "^26.6.5",
+    "vitest": "^4.1.0",
+    "wrangler": "^4.151.3"
+  }
+}

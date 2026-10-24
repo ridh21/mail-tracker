@@ -1,0 +1,19 @@
+node_modules/
+dist/
+.output/
+.wxt/
+.wrangler/
+
+# Local secrets — never commit these.
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+*.log
+.DS_Store
+coverage/

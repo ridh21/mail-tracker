@@ -1,0 +1,60 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mail-tracker",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "workers_dev": true,
+  "preview_urls": false,
+
+  // Dashboard SPA. Tracking, auth and API paths always hit the Worker first.
+  "assets": {
+    "directory": "../dashboard/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/auth/*", "/o/*", "/c/*", "/webhooks/*"]
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mail-tracker",
+      // Run `wrangler d1 create mail-tracker` and paste the id it prints here.
+      // The placeholder is enough for local development and tests.
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  "durable_objects": {
+    "bindings": [{ "name": "USER_HUB", "class_name": "UserHub" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["UserHub"] }],
+
+  "ratelimits": [
+    { "name": "TRACK_LIMITER", "namespace_id": "1001", "simple": { "limit": 60, "period": 60 } }
+  ],
+
+  // Hourly: renew Gmail watches and resync recently active threads.
+  "triggers": { "crons": ["17 * * * *"] },
+
+  "vars": {
+    // Public origin of this Worker. Use http://localhost:8787 locally and your
+    // deployed origin (https://mail-tracker.<subdomain>.workers.dev) in production.
+    "PUBLIC_URL": "http://localhost:8787",
+    // OAuth 2.0 Web client id from Google Cloud Console.
+    "GOOGLE_CLIENT_ID": "",
+    // projects/<gcp-project>/topics/gmail-watch — optional, enables instant reply sync.
+    "GMAIL_PUBSUB_TOPIC": "",
+    // Service account email set on the Pub/Sub push subscription's auth.
+    "PUBSUB_SERVICE_ACCOUNT": "",
+    // Comma separated Google accounts allowed to sign in. Set this in production:
+    // an empty list means anyone who finds the URL can connect their Gmail.
+    "ALLOWED_EMAILS": "",
+    // Comma separated Chrome extension ids allowed to connect. Set your extension id
+    // in production; an empty list shows a confirmation page instead.
+    "ALLOWED_EXTENSION_IDS": ""
+  }
+  // Secrets (wrangler secret put): GOOGLE_CLIENT_SECRET, TOKEN_ENCRYPTION_KEY, SESSION_SECRET
+}

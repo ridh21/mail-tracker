@@ -1,0 +1,13 @@
+# Copy this file to `.dev.vars` and fill it in. Never commit `.dev.vars`.
+# Generate the two keys with: node ../../scripts/generate-secrets.mjs
+TOKEN_ENCRYPTION_KEY=
+SESSION_SECRET=
+
+# OAuth 2.0 Web client secret from Google Cloud Console.
+GOOGLE_CLIENT_SECRET=
+
+# Optional local overrides. `wrangler.jsonc` already defaults PUBLIC_URL to
+# http://localhost:8787.
+# PUBLIC_URL=http://localhost:8787
+# GOOGLE_CLIENT_ID=<your-client-id>.apps.googleusercontent.com
+# ALLOWED_EMAILS=you@example.com
