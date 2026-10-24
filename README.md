@@ -2,6 +2,7 @@
 
 **WhatsApp-style read receipts for Gmail.** Every email you send gets a tick right inside Gmail — sent, delivered, opened, bounced — plus replies and optional link clicks. Self-hosted on Cloudflare, no third-party tracking service, and you own all of the data.
 
+[![CI](https://github.com/ridh21/mail-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/ridh21/mail-tracker/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-black.svg)](LICENSE)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
 [![Chrome MV3](https://img.shields.io/badge/Chrome-MV3-4285F4?logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/)
