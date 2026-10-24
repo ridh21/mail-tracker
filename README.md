@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="apps/extension/public/icon/128.png" width="96" alt="Mail Tracker logo" />
+</p>
+
 # Mail Tracker
 
 **WhatsApp-style read receipts for Gmail.** Every email you send gets a tick right inside Gmail — sent, delivered, opened, bounced — plus replies and optional link clicks. Self-hosted on Cloudflare, no third-party tracking service, and you own all of the data.
