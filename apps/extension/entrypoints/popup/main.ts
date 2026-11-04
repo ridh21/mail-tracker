@@ -8,6 +8,7 @@ const LOGO = `<svg width="28" height="20" viewBox="0 0 16 11" aria-hidden="true"
 const TOGGLES: { key: keyof Settings; label: string; hint: string }[] = [
   { key: "trackByDefault", label: "Track new emails", hint: "Toggle per email from the compose toolbar" },
   { key: "notifyOnOpen", label: "Notify on open", hint: "Desktop notification when someone opens" },
+  { key: "notifyOnRepeat", label: "Notify on repeat opens", hint: "Otherwise only the first open pings you" },
   { key: "notifyOnReply", label: "Notify on reply", hint: "Desktop notification for replies" },
   { key: "linkTracking", label: "Track link clicks", hint: "Rewrites links; can affect deliverability" },
 ];

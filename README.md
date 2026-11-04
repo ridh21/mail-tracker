@@ -444,7 +444,7 @@ All authenticated endpoints accept the dashboard session cookie (`mt_session`) o
 | Method | Path | Description |
 | --- | --- | --- |
 | `GET` | `/api/me` | Current user, Gmail status, watch expiry, and settings. |
-| `PATCH` | `/api/settings` | Update `trackByDefault`, `linkTracking`, `notifyOnOpen`, `notifyOnReply`. |
+| `PATCH` | `/api/settings` | Update `trackByDefault`, `linkTracking`, `notifyOnOpen`, `notifyOnRepeat`, `notifyOnReply`. |
 | `GET` | `/api/messages?limit=&before=&q=&filter=` | Paginated sent messages. Filters: `opened`, `unopened`, `bounced`, `tracked`. |
 | `GET` | `/api/messages/:id` | Message detail: events, thread messages, and timeline. |
 | `POST` | `/api/messages` | Register a message at send time. Idempotent. |

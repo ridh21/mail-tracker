@@ -7,6 +7,11 @@ import { ago } from "../lib/format";
 const TOGGLES: { key: keyof Settings; label: string; hint: string }[] = [
   { key: "trackByDefault", label: "Track new emails by default", hint: "You can switch it per email from the compose toolbar." },
   { key: "notifyOnOpen", label: "Notify me on opens", hint: "Desktop notification from the extension." },
+  {
+    key: "notifyOnRepeat",
+    label: "Notify me again on repeat opens",
+    hint: "Off by default: a second open still counts, it just doesn't ping you twice.",
+  },
   { key: "notifyOnReply", label: "Notify me on replies", hint: "Desktop notification from the extension." },
   {
     key: "linkTracking",

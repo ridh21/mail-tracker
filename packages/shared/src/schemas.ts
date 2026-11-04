@@ -48,6 +48,7 @@ export const settingsSchema = z.object({
   trackByDefault: z.boolean().default(true),
   linkTracking: z.boolean().default(false),
   notifyOnOpen: z.boolean().default(true),
+  notifyOnRepeat: z.boolean().default(false),
   notifyOnReply: z.boolean().default(true),
 });
 export type Settings = z.infer<typeof settingsSchema>;

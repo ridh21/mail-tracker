@@ -232,6 +232,9 @@ function notifySeen(m: MessageSummary, e: OpenEvent, settings: Settings) {
       write("notifyCursor", Math.max(cursor ?? 0, e.at)),
     ]);
     if (!settings.notifyOnOpen || Date.now() - e.at > 24 * 3600_000) return;
+    // One ping per email by default: a second open is still counted, it just
+    // doesn't buzz again. Clicks are always worth a notification.
+    if (e.kind === "open" && m.openCount > 1 && !settings.notifyOnRepeat) return;
 
     const who = attribution(m);
     const title =
