@@ -63,6 +63,7 @@ export async function showPopover(anchor: HTMLElement, status: ThreadStatus, hov
   const parts: string[] = [];
   if (status.openCount) parts.push(`${status.openCount} open${status.openCount > 1 ? "s" : ""}`);
   if (status.replyCount) parts.push(`${status.replyCount} repl${status.replyCount > 1 ? "ies" : "y"}`);
+  if (latest && latest.recipients.length > 1) parts.push(`${latest.recipients.length} recipients · shared pixel`);
   if (latest?.sentAt) parts.push(`sent ${ago(latest.sentAt)}`);
   const sub = el("div", "mt-sub", parts.join(" · ") || "Waiting for the first open");
   const list = el("ol");

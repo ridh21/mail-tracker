@@ -147,7 +147,8 @@ const socket = (() => {
       // Socket traffic keeps the MV3 service worker alive, so opens notify even with Gmail closed.
       keepalive = setInterval(() => ws?.readyState === WebSocket.OPEN && ws.send("ping"), 20_000);
       void refreshMe().catch(() => undefined);
-      void catchUp();
+      // Fill any gap from a disconnect; the heartbeat is throttled after this.
+      void catchUp(true);
     };
     ws.onmessage = (e) => {
       if (e.data === "pong") return;
@@ -203,9 +204,21 @@ async function onRealtime(event: RealtimeEvent) {
 const NOTIFIED_LIMIT = 500;
 let notifyLock: Promise<unknown> = Promise.resolve();
 
-function recipientsLine(m: MessageSummary) {
-  const extra = m.recipients.length > 1 ? ` +${m.recipients.length - 1}` : "";
-  return (m.recipients[0] ?? "Recipient") + extra;
+/**
+ * One pixel is shared by every To, Cc and Bcc recipient, so an open on a
+ * multi-recipient email can never be attributed to one person. Say "one of N
+ * recipients" instead of naming the first address, which used to read as if
+ * the main recipient had opened it.
+ */
+function attribution(m: MessageSummary): { title: string; context: string | null } {
+  const n = m.recipients.length;
+  const preview =
+    n > 2 ? `${m.recipients.slice(0, 2).join(", ")} +${n - 2}` : m.recipients.join(", ");
+  return {
+    title: n > 1 ? `one of ${n} recipients` : (m.recipients[0] ?? "someone"),
+    // A recipient list, not a claim about which one opened it.
+    context: n > 1 ? preview : null,
+  };
 }
 
 /** Shows one notification per counted open/click, never twice, and advances the catch-up cursor. */
@@ -220,18 +233,20 @@ function notifySeen(m: MessageSummary, e: OpenEvent, settings: Settings) {
     ]);
     if (!settings.notifyOnOpen || Date.now() - e.at > 24 * 3600_000) return;
 
+    const who = attribution(m);
     const title =
       e.kind === "click"
-        ? `Link clicked by ${recipientsLine(m)}`
+        ? `Link clicked by ${who.title}`
         : m.openCount > 1
-          ? `Seen again by ${recipientsLine(m)} · ${m.openCount}×`
-          : `Seen by ${recipientsLine(m)}`;
+          ? `Opened again by ${who.title} · ${m.openCount}×`
+          : `Opened by ${who.title}`;
+    const time = new Date(e.at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
     chrome.notifications.create(`m:${m.id}:${e.id}`, {
       type: "basic",
       iconUrl: chrome.runtime.getURL("/icon/128.png"),
       title,
       message: m.subject || "(no subject)",
-      contextMessage: new Date(e.at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }),
+      contextMessage: who.context ? `${who.context} · ${time}` : time,
       priority: 2,
       silent: false,
     });
@@ -241,7 +256,12 @@ function notifySeen(m: MessageSummary, e: OpenEvent, settings: Settings) {
 }
 
 /** Notifies about opens that happened while the service worker or socket was down. */
-async function catchUp() {
+const CATCH_UP_MIN_MS = 5 * 60_000;
+let lastCatchUp = 0;
+
+async function catchUp(force = false) {
+  if (!force && Date.now() - lastCatchUp < CATCH_UP_MIN_MS) return;
+  lastCatchUp = Date.now();
   if (!(await read("credentials"))) return;
   const cursor = await read("notifyCursor");
   if (cursor === null) {
@@ -313,7 +333,8 @@ export default defineBackground(() => {
     port.onDisconnect.addListener(() => ports.delete(port));
   });
 
-  // Wakes the worker every 30s: retry the outbox, revive the socket, catch up on missed opens.
+  // Wakes the worker every 30s: retry the outbox and revive the socket. The
+  // catch-up call is throttled because the live socket already delivers opens.
   chrome.alarms.create("heartbeat", { periodInMinutes: 0.5 });
   chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name !== "heartbeat") return;

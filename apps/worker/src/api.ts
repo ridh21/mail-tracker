@@ -76,11 +76,12 @@ api.post("/messages", async (c) => {
   const now = Date.now();
 
   const row = await c.env.DB.prepare(
-    `INSERT INTO messages (id, user_id, tracking_id, thread_id, subject, recipients, is_reply, registered_at)
-     VALUES (?1, ?2, ?1, ?3, ?4, ?5, ?6, ?7)
+    `INSERT INTO messages (id, user_id, tracking_id, thread_id, subject, recipients, envelope, is_reply, registered_at)
+     VALUES (?1, ?2, ?1, ?3, ?4, ?5, ?6, ?7, ?8)
      ON CONFLICT (id) DO UPDATE SET
        thread_id = COALESCE(messages.thread_id, excluded.thread_id),
-       subject = excluded.subject, recipients = excluded.recipients, is_reply = excluded.is_reply
+       subject = excluded.subject, recipients = excluded.recipients,
+       envelope = excluded.envelope, is_reply = excluded.is_reply
      WHERE messages.user_id = ?2
      RETURNING *`,
   )
@@ -90,6 +91,7 @@ api.post("/messages", async (c) => {
       input.threadId ?? null,
       input.subject,
       JSON.stringify([...input.to, ...input.cc, ...input.bcc]),
+      JSON.stringify({ to: input.to, cc: input.cc, bcc: input.bcc }),
       input.isReply ? 1 : 0,
       input.composedAt ? Math.min(input.composedAt, now) : now,
     )
@@ -181,41 +183,36 @@ api.get("/messages", async (c) => {
   const q = c.req.query("q")?.trim().toLowerCase();
   const filter = c.req.query("filter");
 
-  const where = [`user_id = ?1`, `COALESCE(sent_at, registered_at) < ?2`];
+  const where = [`m.user_id = ?1`, `COALESCE(m.sent_at, m.registered_at) < ?2`];
   const binds: (string | number)[] = [userId, before];
   if (q) {
     binds.push(`%${q.replace(/[%_\\]/g, "\\$&")}%`);
-    where.push(`(LOWER(subject) LIKE ?${binds.length} ESCAPE '\\' OR LOWER(recipients) LIKE ?${binds.length} ESCAPE '\\')`);
+    where.push(
+      `(LOWER(m.subject) LIKE ?${binds.length} ESCAPE '\\' OR LOWER(m.recipients) LIKE ?${binds.length} ESCAPE '\\')`,
+    );
   }
-  if (filter === "opened") where.push(`open_count > 0`);
-  if (filter === "unopened") where.push(`tracking_id IS NOT NULL AND open_count = 0 AND bounced_at IS NULL`);
-  if (filter === "bounced") where.push(`bounced_at IS NOT NULL`);
-  if (filter === "tracked") where.push(`tracking_id IS NOT NULL`);
+  if (filter === "opened") where.push(`m.open_count > 0`);
+  if (filter === "unopened") where.push(`m.tracking_id IS NOT NULL AND m.open_count = 0 AND m.bounced_at IS NULL`);
+  if (filter === "bounced") where.push(`m.bounced_at IS NOT NULL`);
+  if (filter === "tracked") where.push(`m.tracking_id IS NOT NULL`);
 
   binds.push(limit + 1);
+  // One round trip: the reply count is a correlated lookup on the same page of
+  // messages instead of a second D1 query keyed by every thread id.
   const { results } = await c.env.DB.prepare(
-    `SELECT * FROM messages WHERE ${where.join(" AND ")}
-     ORDER BY COALESCE(sent_at, registered_at) DESC LIMIT ?${binds.length}`,
+    `SELECT m.*,
+       (SELECT COUNT(*) FROM replies r
+        WHERE r.user_id = m.user_id AND r.thread_id = m.thread_id AND r.is_bounce = 0) AS reply_count
+     FROM messages m WHERE ${where.join(" AND ")}
+     ORDER BY COALESCE(m.sent_at, m.registered_at) DESC LIMIT ?${binds.length}`,
   )
     .bind(...binds)
-    .all<MessageRow>();
+    .all<MessageRow & { reply_count: number }>();
 
   const page = results.slice(0, limit);
-  const threadIds = [...new Set(page.flatMap((m) => (m.thread_id ? [m.thread_id] : [])))];
-  const replyCounts = new Map<string, number>();
-  if (threadIds.length) {
-    const { results: rc } = await c.env.DB.prepare(
-      `SELECT thread_id, COUNT(*) AS n FROM replies WHERE user_id = ?1 AND is_bounce = 0
-       AND thread_id IN (SELECT value FROM json_each(?2)) GROUP BY thread_id`,
-    )
-      .bind(userId, JSON.stringify(threadIds))
-      .all<{ thread_id: string; n: number }>();
-    for (const r of rc) replyCounts.set(r.thread_id, r.n);
-  }
-
   const last = page.at(-1);
   return c.json({
-    items: page.map((m) => ({ ...toMessage(m), replyCount: m.thread_id ? (replyCounts.get(m.thread_id) ?? 0) : 0 })),
+    items: page.map((m) => ({ ...toMessage(m), replyCount: m.reply_count ?? 0 })),
     nextBefore: results.length > limit && last ? (last.sent_at ?? last.registered_at) : null,
   });
 });

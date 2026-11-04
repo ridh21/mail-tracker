@@ -41,7 +41,7 @@ async function recordHit(c: Context<HonoEnv>, input: HitInput, at: number) {
   const asn = typeof cf?.asn === "number" ? cf.asn : null;
   const { source, bot } = classifySource({ at, userAgent, asn, ip });
 
-  const hit: Omit<PendingHit, "messageId"> = {
+  const hit: Omit<PendingHit, "message"> = {
     ...input,
     at,
     source,
@@ -55,12 +55,32 @@ async function recordHit(c: Context<HonoEnv>, input: HitInput, at: number) {
     asn,
   };
 
-  const msg = await env.DB.prepare(`SELECT id, user_id FROM messages WHERE tracking_id = ?`)
+  const msg = await env.DB.prepare(
+    `SELECT id, user_id, thread_id, sent_at, registered_at, last_open_at FROM messages WHERE tracking_id = ?`,
+  )
     .bind(input.trackingId)
-    .first<{ id: string; user_id: string }>();
+    .first<{
+      id: string;
+      user_id: string;
+      thread_id: string | null;
+      sent_at: number | null;
+      registered_at: number;
+      last_open_at: number | null;
+    }>();
 
   if (msg) {
-    await hubFor(env, msg.user_id).ingestHit({ ...hit, messageId: msg.id });
+    await hubFor(env, msg.user_id).ingestHit({
+      ...hit,
+      // Resolved here so the Durable Object doesn't spend another D1 read on it.
+      message: {
+        id: msg.id,
+        userId: msg.user_id,
+        threadId: msg.thread_id,
+        sentAt: msg.sent_at,
+        registeredAt: msg.registered_at,
+        lastOpenAt: msg.last_open_at,
+      },
+    });
     return;
   }
 

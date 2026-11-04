@@ -142,11 +142,11 @@ async function processSent(env: AppEnv, gmail: Gmail, user: UserRow, msg: AddedM
   const full = await gmail.getMessage(msg.id, "full");
   const sentAt = Number(full.internalDate);
   const subject = header(full, "Subject") ?? "";
-  const recipients = [
-    ...parseAddressList(header(full, "To")),
-    ...parseAddressList(header(full, "Cc")),
-    ...parseAddressList(header(full, "Bcc")),
-  ];
+  const to = parseAddressList(header(full, "To"));
+  const cc = parseAddressList(header(full, "Cc"));
+  const bcc = parseAddressList(header(full, "Bcc"));
+  const recipients = [...to, ...cc, ...bcc];
+  const envelope = JSON.stringify({ to, cc, bcc });
   const isReply = Boolean(header(full, "In-Reply-To"));
   const ids = pixelIdsIn(env, htmlBody(full.payload));
 
@@ -163,10 +163,11 @@ async function processSent(env: AppEnv, gmail: Gmail, user: UserRow, msg: AddedM
 
     if (candidate) {
       row = await env.DB.prepare(
-        `UPDATE messages SET gmail_message_id = ?2, thread_id = ?3, sent_at = COALESCE(sent_at, ?4), gmail_confirmed = 1
+        `UPDATE messages SET gmail_message_id = ?2, thread_id = ?3, sent_at = COALESCE(sent_at, ?4),
+           envelope = COALESCE(envelope, ?5), gmail_confirmed = 1
          WHERE id = ?1 RETURNING *`,
       )
-        .bind(candidate.id, msg.id, msg.threadId, sentAt)
+        .bind(candidate.id, msg.id, msg.threadId, sentAt, envelope)
         .first<MessageRow>();
     } else {
       // Registration never reached us (extension closed mid-send). Pixels that are
@@ -180,12 +181,12 @@ async function processSent(env: AppEnv, gmail: Gmail, user: UserRow, msg: AddedM
       const fresh = ids.find((id) => !knownSet.has(id));
       if (fresh) {
         row = await env.DB.prepare(
-          `INSERT INTO messages (id, user_id, tracking_id, gmail_message_id, thread_id, subject, recipients, is_reply,
-             registered_at, sent_at, gmail_confirmed)
-           VALUES (?1, ?2, ?1, ?3, ?4, ?5, ?6, ?7, ?8, ?8, 1)
+          `INSERT INTO messages (id, user_id, tracking_id, gmail_message_id, thread_id, subject, recipients, envelope,
+             is_reply, registered_at, sent_at, gmail_confirmed)
+           VALUES (?1, ?2, ?1, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, 1)
            ON CONFLICT DO NOTHING RETURNING *`,
         )
-          .bind(fresh, user.id, msg.id, msg.threadId, subject, JSON.stringify(recipients), isReply ? 1 : 0, sentAt)
+          .bind(fresh, user.id, msg.id, msg.threadId, subject, JSON.stringify(recipients), envelope, isReply ? 1 : 0, sentAt)
           .first<MessageRow>();
         if (row) row = await adoptOrphanEvents(env, user.id, row);
       }
@@ -194,12 +195,22 @@ async function processSent(env: AppEnv, gmail: Gmail, user: UserRow, msg: AddedM
 
   if (!row) {
     row = await env.DB.prepare(
-      `INSERT INTO messages (id, user_id, gmail_message_id, thread_id, subject, recipients, is_reply,
+      `INSERT INTO messages (id, user_id, gmail_message_id, thread_id, subject, recipients, envelope, is_reply,
          registered_at, sent_at, gmail_confirmed)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8, 1)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, 1)
        ON CONFLICT DO NOTHING RETURNING *`,
     )
-      .bind(`g_${msg.id}`, user.id, msg.id, msg.threadId, subject, JSON.stringify(recipients), isReply ? 1 : 0, sentAt)
+      .bind(
+        `g_${msg.id}`,
+        user.id,
+        msg.id,
+        msg.threadId,
+        subject,
+        JSON.stringify(recipients),
+        envelope,
+        isReply ? 1 : 0,
+        sentAt,
+      )
       .first<MessageRow>();
   }
 

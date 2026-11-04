@@ -31,6 +31,8 @@ export interface MessageRow {
   thread_id: string | null;
   subject: string;
   recipients: string;
+  /** JSON `{ to, cc, bcc }`; NULL for rows written before the split existed. */
+  envelope: string | null;
   is_reply: number;
   registered_at: number;
   sent_at: number | null;
@@ -82,13 +84,22 @@ export function toMe(u: UserRow): Me {
 }
 
 export function toMessage(r: MessageRow, now = Date.now()): MessageSummary {
+  const recipients = JSON.parse(r.recipients) as string[];
+  // Rows written before migration 0002 have no envelope. Fall back to the flat
+  // list as "To" rather than inventing Cc/Bcc data we never stored.
+  const envelope = r.envelope
+    ? (JSON.parse(r.envelope) as { to?: string[]; cc?: string[]; bcc?: string[] })
+    : null;
   return {
     id: r.id,
     trackingId: r.tracking_id,
     gmailMessageId: r.gmail_message_id,
     threadId: r.thread_id,
     subject: r.subject,
-    recipients: JSON.parse(r.recipients) as string[],
+    recipients,
+    to: envelope?.to ?? recipients,
+    cc: envelope?.cc ?? [],
+    bcc: envelope?.bcc ?? [],
     isReply: r.is_reply === 1,
     sentAt: r.sent_at,
     bouncedAt: r.bounced_at,

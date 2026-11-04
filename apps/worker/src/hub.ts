@@ -5,10 +5,20 @@ import type { AppEnv } from "./env";
 import { classifyOpen, SELF_VIEW_AFTER_MS, SELF_VIEW_BEFORE_MS } from "./lib/classify";
 import { syncHistory } from "./sync";
 
+/** The message fields a hit needs, resolved once at the edge so the hub does no D1 read. */
+export interface HitMessage {
+  id: string;
+  userId: string;
+  threadId: string | null;
+  sentAt: number | null;
+  registeredAt: number;
+  lastOpenAt: number | null;
+}
+
 /** A pixel or click hit for a registered message. */
 export interface PendingHit {
   trackingId: string;
-  messageId: string;
+  message: HitMessage;
   kind: "open" | "click";
   linkIdx: number | null;
   at: number;
@@ -118,15 +128,14 @@ export class UserHub extends DurableObject<AppEnv> {
 
   private async processHit(hit: PendingHit) {
     const db = this.env.DB;
-    const msg = await db.prepare(`SELECT * FROM messages WHERE id = ?`).bind(hit.messageId).first<MessageRow>();
-    if (!msg) return;
-    const sentOrder = msg.sent_at ?? msg.registered_at;
+    const meta = hit.message;
+    const sentOrder = meta.sentAt ?? meta.registeredAt;
 
-    const pings = msg.thread_id
+    const pings = meta.threadId
       ? this.sql
           .exec<{ at: number }>(
             `SELECT at FROM view_pings WHERE thread_id = ? AND at BETWEEN ? AND ?`,
-            msg.thread_id,
+            meta.threadId,
             hit.at - 60_000,
             hit.at + 60_000,
           )
@@ -136,24 +145,24 @@ export class UserHub extends DurableObject<AppEnv> {
     const lastLocal = this.sql
       .exec<{ t: number | null }>(
         `SELECT MAX(at) AS t FROM recent_hits WHERE message_id = ? AND kind = 'open' AND counted = 1`,
-        msg.id,
+        meta.id,
       )
       .one().t;
 
     let verdict = classifyOpen(hit, {
       sentAt: sentOrder,
       viewPings: pings,
-      lastCountedAt: hit.kind === "open" ? Math.max(lastLocal ?? 0, msg.last_open_at ?? 0) || null : null,
+      lastCountedAt: hit.kind === "open" ? Math.max(lastLocal ?? 0, meta.lastOpenAt ?? 0) || null : null,
     });
 
     // Opening a reply renders the quoted earlier pixels too: credit only the newest message.
-    if (verdict.counted && hit.kind === "open" && msg.thread_id) {
+    if (verdict.counted && hit.kind === "open" && meta.threadId) {
       const newer = this.sql
         .exec<{ n: number }>(
           `SELECT COUNT(*) AS n FROM recent_hits
            WHERE thread_id = ? AND kind = 'open' AND message_id != ? AND sent_order > ? AND ABS(at - ?) <= ?`,
-          msg.thread_id,
-          msg.id,
+          meta.threadId,
+          meta.id,
           sentOrder,
           hit.at,
           QUOTED_WINDOW_MS,
@@ -170,8 +179,8 @@ export class UserHub extends DurableObject<AppEnv> {
       )
       .bind(
         hit.trackingId,
-        msg.user_id,
-        msg.id,
+        meta.userId,
+        meta.id,
         hit.kind,
         hit.linkIdx,
         hit.at,
@@ -192,8 +201,8 @@ export class UserHub extends DurableObject<AppEnv> {
               `UPDATE messages SET open_count = open_count + 1, first_open_at = COALESCE(first_open_at, ?2),
                  last_open_at = MAX(COALESCE(last_open_at, 0), ?2) WHERE id = ?1 RETURNING *`,
             )
-            .bind(msg.id, hit.at)
-        : db.prepare(`UPDATE messages SET click_count = click_count + 1 WHERE id = ? RETURNING *`).bind(msg.id);
+            .bind(meta.id, hit.at)
+        : db.prepare(`UPDATE messages SET click_count = click_count + 1 WHERE id = ? RETURNING *`).bind(meta.id);
 
     const out = await db.batch(update ? [insert, update] : [insert]);
     const event = out[0]?.results[0] as EventRow | undefined;
@@ -202,8 +211,8 @@ export class UserHub extends DurableObject<AppEnv> {
     this.sql.exec(
       `INSERT INTO recent_hits (event_id, message_id, thread_id, sent_order, kind, at, counted) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       event.id,
-      msg.id,
-      msg.thread_id,
+      meta.id,
+      meta.threadId,
       sentOrder,
       hit.kind,
       hit.at,
@@ -214,12 +223,12 @@ export class UserHub extends DurableObject<AppEnv> {
     if (updated) this.broadcast({ type: "open", message: toMessage(updated), event: toEvent(event) });
 
     // This newer message's pixel proves older opens in the same render were quoted copies.
-    if (verdict.counted && hit.kind === "open" && msg.thread_id) {
+    if (verdict.counted && hit.kind === "open" && meta.threadId) {
       const quoted = this.sql
         .exec<{ event_id: number; message_id: string }>(
           `SELECT event_id, message_id FROM recent_hits
            WHERE thread_id = ? AND kind = 'open' AND counted = 1 AND sent_order < ? AND ABS(at - ?) <= ?`,
-          msg.thread_id,
+          meta.threadId,
           sentOrder,
           hit.at,
           QUOTED_WINDOW_MS,

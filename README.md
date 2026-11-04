@@ -199,6 +199,8 @@ pnpm run deploy
 
 This builds the dashboard, applies the D1 migrations remotely, and deploys the Worker. If the deployed URL differs from what you set, update `PUBLIC_URL` and run `pnpm run deploy` again.
 
+If this checkout is a public repo, keep the real values out of git instead: copy `wrangler.jsonc` to `wrangler.production.jsonc` (gitignored), fill in that copy, and deploy with `pnpm run deploy:prod`.
+
 ### 3. Set up Google Cloud
 
 1. Create a project and enable the **Gmail API** and **Cloud Pub/Sub API**.
@@ -215,9 +217,28 @@ This builds the dashboard, applies the D1 migrations remotely, and deploys the W
      ```
 4. **Optional but recommended: Pub/Sub for instant reply sync.**
 
+   Pub/Sub has a permanent free tier: the first 10 GiB of monthly throughput per
+   billing account is free, then $40/TiB. Gmail's notifications are a few hundred
+   bytes each and capped at one per second per mailbox, so a personal inbox uses
+   megabytes per month — effectively **$0**. A billing account must be enabled on
+   the Google Cloud project, but you should not see a charge. Storage is free
+   because the push subscription acknowledges immediately.
+
+   If you have `gcloud` authenticated, the repository script creates the topic,
+   service account, IAM bindings and push subscription idempotently:
+
+   ```sh
+   PROJECT=<your-gcp-project> WORKER=https://<your-worker> ./scripts/setup-pubsub.sh
+   ```
+
+   Or run the steps by hand:
+
    ```sh
    PROJECT=<your-gcp-project>
    WORKER=https://<your-worker>
+   PROJECT_NUMBER=$(gcloud projects describe "$PROJECT" --format='value(projectNumber)')
+
+   gcloud services enable gmail.googleapis.com pubsub.googleapis.com --project "$PROJECT"
 
    gcloud pubsub topics create gmail-watch --project "$PROJECT"
 
@@ -226,6 +247,12 @@ This builds the dashboard, applies the D1 migrations remotely, and deploys the W
      --role=roles/pubsub.publisher
 
    gcloud iam service-accounts create gmail-push --project "$PROJECT"
+
+   # Pub/Sub's service agent needs this to sign the OIDC token on the push.
+   gcloud projects add-iam-policy-binding "$PROJECT" \
+     --member="serviceAccount:service-$PROJECT_NUMBER@gcp-sa-pubsub.iam.gserviceaccount.com" \
+     --role=roles/iam.serviceAccountTokenCreator \
+     --condition=None
 
    gcloud pubsub subscriptions create gmail-watch-push --project "$PROJECT" \
      --topic gmail-watch \
@@ -242,7 +269,9 @@ This builds the dashboard, applies the D1 migrations remotely, and deploys the W
    "PUBSUB_SERVICE_ACCOUNT": "gmail-push@<your-project>.iam.gserviceaccount.com",
    ```
 
-   Redeploy with `pnpm run deploy`. Without Pub/Sub, everything still works; replies sync hourly instead of within seconds.
+   Redeploy with `pnpm run deploy`, then click **Sync now** in Settings (or wait
+   for the hourly cron) to create the Gmail watch. Without Pub/Sub, everything
+   still works; replies sync hourly instead of within seconds.
 
 After changing `GOOGLE_CLIENT_ID`, `PUBLIC_URL`, or any other Worker variable, run `pnpm run deploy` again.
 
@@ -345,6 +374,7 @@ Worker tests do not need a Cloudflare account. They apply the real D1 migrations
 | `pnpm typecheck` | Type-check every package. |
 | `pnpm test` | Run shared and Worker tests. |
 | `pnpm run deploy` | Build the dashboard, apply remote D1 migrations, deploy the Worker. |
+| `pnpm run deploy:prod` | Same, using the gitignored `wrangler.production.jsonc` for real deployment values. |
 | `pnpm secrets:generate` | Print fresh `TOKEN_ENCRYPTION_KEY` and `SESSION_SECRET` values. |
 | `pnpm --filter @mail-tracker/worker db:migrate:local` | Apply D1 migrations to the local database. |
 | `pnpm --filter @mail-tracker/worker cf-typegen` | Regenerate `worker-configuration.d.ts` from `wrangler.jsonc`. |
@@ -482,7 +512,7 @@ If you find a vulnerability, please **do not open a public issue**. Use GitHub's
 
 - Gmail web + Chrome only. No Firefox/Safari extension and no mobile app.
 - “Delivered” is a 3-minute no-bounce heuristic, not a real receipt.
-- No per-recipient attribution for multi-recipient emails.
+- To, Cc and Bcc share one pixel. An open means “someone on this email”, never a specific recipient; per-person attribution would require sending each recipient a separate tracked copy.
 - Own opens from Gmail mobile can count, because the extension is not present there.
 - Gmail’s image proxy hides location and device for Gmail readers.
 - Plain-text emails cannot be tracked.

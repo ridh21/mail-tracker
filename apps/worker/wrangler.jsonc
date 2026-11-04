@@ -3,7 +3,7 @@
   "name": "mail-tracker",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
-  "compatibility_flags": ["nodejs_compat"],
+  // No node: imports are used; keeping this flag off trims the startup bundle.
   "observability": { "enabled": true },
   "workers_dev": true,
   "preview_urls": false,

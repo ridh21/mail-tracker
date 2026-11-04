@@ -4,6 +4,10 @@ dist/
 .wxt/
 .wrangler/
 
+# Real deployment values (database id, origins, allowlists). Copy wrangler.jsonc
+# and fill it in; deploy with `pnpm run deploy:prod`.
+wrangler.production.jsonc
+
 # Local secrets — never commit these.
 .dev.vars
 .dev.vars.*

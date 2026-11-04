@@ -176,8 +176,35 @@ describe("clicks", () => {
   });
 });
 
-describe("api auth", () => {
-  it("rejects missing credentials", async () => {
+describe("recipient envelope", () => {
+  it("keeps To, Cc and Bcc separate for notification copy", async () => {
+    const trackingId = tid();
+    const res = await apiCall("/api/messages", {
+      trackingId,
+      subject: "Split recipients",
+      to: ["main@example.com"],
+      cc: ["cc@example.com"],
+      bcc: ["bcc@example.com"],
+    });
+    expect(res.status).toBe(200);
+    const summary = (await res.json()) as {
+      to: string[];
+      cc: string[];
+      bcc: string[];
+      recipients: string[];
+    };
+    expect(summary.to).toEqual(["main@example.com"]);
+    expect(summary.cc).toEqual(["cc@example.com"]);
+    expect(summary.bcc).toEqual(["bcc@example.com"]);
+    expect(summary.recipients).toEqual(["main@example.com", "cc@example.com", "bcc@example.com"]);
+
+    const detail = await apiCall(`/api/messages/${trackingId}`);
+    expect(detail.status).toBe(200);
+    expect(((await detail.json()) as { message: typeof summary }).message).toMatchObject(summary);
+  });
+});
+
+describe("api auth", () => {  it("rejects missing credentials", async () => {
     expect((await call("/api/me")).status).toBe(401);
   });
 

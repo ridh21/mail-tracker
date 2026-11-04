@@ -11,6 +11,7 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "deploy": "pnpm --filter @mail-tracker/dashboard build && pnpm --filter @mail-tracker/worker run deploy",
+    "deploy:prod": "pnpm --filter @mail-tracker/dashboard build && pnpm --filter @mail-tracker/worker run deploy:prod",
     "secrets:generate": "node scripts/generate-secrets.mjs"
   },
   "devDependencies": {

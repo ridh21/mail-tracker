@@ -23,7 +23,8 @@ export function Sent() {
     queryFn: ({ pageParam }) => endpoints.messages(q, filter, pageParam),
     initialPageParam: undefined as number | undefined,
     getNextPageParam: (last) => last.nextBefore ?? undefined,
-    refetchInterval: 60_000,
+    // Realtime invalidates this query on every event; poll only as a fallback.
+    refetchInterval: 300_000,
   });
   const items = list.data?.pages.flatMap((p) => p.items) ?? [];
 

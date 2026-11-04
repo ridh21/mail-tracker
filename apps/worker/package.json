@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler d1 migrations apply mail-tracker --remote && wrangler deploy",
+    "deploy:prod": "wrangler d1 migrations apply mail-tracker --remote -c wrangler.production.jsonc && wrangler deploy -c wrangler.production.jsonc",
     "db:migrate:local": "wrangler d1 migrations apply mail-tracker --local",
     "cf-typegen": "wrangler types --strict-vars=false",
     "typecheck": "tsc -p .",

@@ -36,7 +36,12 @@ export interface MessageSummary {
   gmailMessageId: string | null;
   threadId: string | null;
   subject: string;
+  /** Every recipient, flattened. Kept for search and older rows. */
   recipients: string[];
+  /** Envelope split when known. Older workers only send the flat list. */
+  to?: string[];
+  cc?: string[];
+  bcc?: string[];
   isReply: boolean;
   sentAt: number | null;
   bouncedAt: number | null;

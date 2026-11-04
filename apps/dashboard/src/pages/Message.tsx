@@ -8,7 +8,12 @@ import { ago, dateTime, duration, REASON_LABEL, SOURCE_LABEL } from "../lib/form
 import { Link } from "../lib/router";
 
 export function MessagePage({ id }: { id: string }) {
-  const detail = useQuery({ queryKey: ["message", id], queryFn: () => endpoints.message(id), refetchInterval: 60_000 });
+  const detail = useQuery({
+    queryKey: ["message", id],
+    queryFn: () => endpoints.message(id),
+    // Realtime pushes every open; this is only a safety net for a dropped socket.
+    refetchInterval: 300_000,
+  });
   const [showIgnored, setShowIgnored] = useState(false);
 
   if (detail.isPending) return <div className="h-64" aria-busy />;
@@ -27,6 +32,11 @@ export function MessagePage({ id }: { id: string }) {
   const counted = events.filter((e) => e.counted);
   const ignored = events.filter((e) => !e.counted);
   const timeToOpen = m.firstOpenAt && m.sentAt ? m.firstOpenAt - m.sentAt : null;
+  // Older rows only stored one flat list, so treat it as To rather than guessing.
+  const to = m.to?.length ? m.to : m.recipients;
+  const cc = m.cc ?? [];
+  const bcc = m.bcc ?? [];
+  const multiRecipient = m.recipients.length > 1;
 
   // Weave this message's opens into the thread timeline.
   const items: TimelineItem[] = [
@@ -42,7 +52,15 @@ export function MessagePage({ id }: { id: string }) {
 
       <header className="mt-4 mb-6">
         <h1 className="text-xl font-semibold tracking-[-0.015em] text-balance">{m.subject || "(no subject)"}</h1>
-        <p className="mt-1 text-sm text-muted">To {m.recipients.join(", ") || "no recipients"}</p>
+        <p className="mt-1 text-sm text-muted">To {to.join(", ") || "no recipients"}</p>
+        {cc.length > 0 && <p className="mt-0.5 text-sm text-muted">Cc {cc.join(", ")}</p>}
+        {bcc.length > 0 && <p className="mt-0.5 text-sm text-muted">Bcc {bcc.join(", ")}</p>}
+        {multiRecipient && (
+          <p className="mt-1.5 max-w-prose text-xs leading-relaxed text-faint text-pretty">
+            One shared tracking pixel covers every recipient, so an open means someone on this email
+            opened it — not necessarily the first person listed.
+          </p>
+        )}
       </header>
 
       <dl className="mb-8 grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-line smooth-shadow-ring-sm sm:grid-cols-4">
@@ -89,6 +107,7 @@ export function MessagePage({ id }: { id: string }) {
           <p className="mt-3 text-xs leading-relaxed text-faint text-pretty">
             Gmail loads images through Google's proxy, so location isn't available for Gmail readers. Opens from your own
             Gmail, privacy prefetches and scanners are filtered out.
+            {multiRecipient && " For multi-recipient emails, an open can't be tied to one person."}
           </p>
         </section>
       </div>
