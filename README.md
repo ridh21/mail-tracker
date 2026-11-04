@@ -273,6 +273,10 @@ If this checkout is a public repo, keep the real values out of git instead: copy
    for the hourly cron) to create the Gmail watch. Without Pub/Sub, everything
    still works; replies sync hourly instead of within seconds.
 
+   Once a watch is registered, `CRON_SYNC` (default `auto`) stops the hourly
+   Gmail poll so Pub/Sub is the only sync path. Set it to `always` to keep both,
+   or `never` to renew the watch but never poll.
+
 After changing `GOOGLE_CLIENT_ID`, `PUBLIC_URL`, or any other Worker variable, run `pnpm run deploy` again.
 
 > **Important:** the Worker verifies the Pub/Sub OIDC token's audience against `${PUBLIC_URL}/webhooks/gmail` and the service account against `PUBSUB_SERVICE_ACCOUNT`. If you change `PUBLIC_URL`, update the push subscription and the OAuth redirect URI too.
@@ -389,6 +393,7 @@ Worker tests do not need a Cloudflare account. They apply the real D1 migrations
 | `GOOGLE_CLIENT_ID` | Yes | OAuth 2.0 Web client ID from Google Cloud. |
 | `GMAIL_PUBSUB_TOPIC` | No | `projects/<project>/topics/gmail-watch`. Enables instant reply sync. Empty falls back to the hourly cron. |
 | `PUBSUB_SERVICE_ACCOUNT` | No | Service account email used by the Pub/Sub push subscription. Required if `GMAIL_PUBSUB_TOPIC` is set. |
+| `CRON_SYNC` | No | `auto` (default) skips the hourly Gmail poll while a Pub/Sub watch is healthy, `always` keeps polling, `never` renews the watch but leaves sync to Pub/Sub. |
 | `ALLOWED_EMAILS` | Recommended | Comma-separated Google accounts allowed to sign in. Empty allows anyone who finds the URL. |
 | `ALLOWED_EXTENSION_IDS` | Recommended | Comma-separated Chrome extension IDs allowed to connect. Empty shows a confirmation page instead. |
 | `database_id` | Yes (production) | D1 database id from `wrangler d1 create`. The committed placeholder is for local dev and tests. |

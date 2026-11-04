@@ -12,6 +12,8 @@ export interface AppEnv {
   PUBSUB_SERVICE_ACCOUNT: string;
   ALLOWED_EMAILS: string;
   ALLOWED_EXTENSION_IDS: string;
+  /** auto | always | never — controls the hourly Gmail poll. See cron.ts. */
+  CRON_SYNC?: string;
 
   GOOGLE_CLIENT_SECRET: string;
   /** Base64 encoded 32 byte AES-GCM key for OAuth tokens at rest. */

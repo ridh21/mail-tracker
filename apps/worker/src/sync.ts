@@ -34,15 +34,17 @@ export function pixelIdsIn(env: AppEnv, html: string): string[] {
   return [...new Set([...html.matchAll(re)].map((m) => m[1]!))];
 }
 
-export async function ensureWatch(env: AppEnv, userId: string): Promise<void> {
-  if (!env.GMAIL_PUBSUB_TOPIC) return;
+export async function ensureWatch(env: AppEnv, userId: string): Promise<number | null> {
+  if (!env.GMAIL_PUBSUB_TOPIC) return null;
   try {
     const res = await new Gmail(env, userId).watch(env.GMAIL_PUBSUB_TOPIC);
+    const expiresAt = Number(res.expiration);
     await env.DB.prepare(
       `UPDATE users SET watch_expires_at = ?2, history_id = COALESCE(history_id, ?3), gmail_status = 'ok' WHERE id = ?1`,
     )
-      .bind(userId, Number(res.expiration), res.historyId)
+      .bind(userId, expiresAt, res.historyId)
       .run();
+    return expiresAt;
   } catch (err) {
     if (!(err instanceof ReauthRequiredError)) {
       await env.DB.prepare(`UPDATE users SET gmail_status = 'watch_failed' WHERE id = ?`).bind(userId).run();

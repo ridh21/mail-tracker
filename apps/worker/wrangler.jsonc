@@ -36,7 +36,7 @@
     { "name": "TRACK_LIMITER", "namespace_id": "1001", "simple": { "limit": 60, "period": 60 } }
   ],
 
-  // Hourly: renew Gmail watches and resync recently active threads.
+  // Hourly: renew Gmail watches; polls only when CRON_SYNC allows it.
   "triggers": { "crons": ["17 * * * *"] },
 
   "vars": {
@@ -49,6 +49,9 @@
     "GMAIL_PUBSUB_TOPIC": "",
     // Service account email set on the Pub/Sub push subscription's auth.
     "PUBSUB_SERVICE_ACCOUNT": "",
+    // auto polls Gmail hourly only while no Pub/Sub watch is healthy; always
+    // keeps polling; never renews the watch but leaves sync to Pub/Sub.
+    "CRON_SYNC": "auto",
     // Comma separated Google accounts allowed to sign in. Set this in production:
     // an empty list means anyone who finds the URL can connect their Gmail.
     "ALLOWED_EMAILS": "",
