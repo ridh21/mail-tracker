@@ -124,9 +124,17 @@ function registerCompose(sdk: SDK, getAuth: () => AuthState) {
 
     cv.on("presending", () => {
       const current = getAuth();
-      if (!state.enabled || !current.connected) return;
+      // Deliberate opt-out from the compose button: no log, no pixel.
+      if (!state.enabled) return;
+      if (!current.connected) {
+        console.warn("[mail-tracker] not tracking: the extension is not connected");
+        return;
+      }
       const { to, cc, bcc } = recipientsOf(cv);
-      if (!to.length && !cc.length && !bcc.length) return;
+      if (!to.length && !cc.length && !bcc.length) {
+        console.warn("[mail-tracker] not tracking: no recipients found");
+        return;
+      }
 
       try {
         const body = cv.getBodyElement();

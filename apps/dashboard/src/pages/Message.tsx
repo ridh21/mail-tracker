@@ -61,6 +61,12 @@ export function MessagePage({ id }: { id: string }) {
             opened it — not necessarily the first person listed.
           </p>
         )}
+        {!m.trackingId && (
+          <p className="mt-1.5 max-w-prose text-xs leading-relaxed text-faint text-pretty">
+            This email carried no tracking pixel, so there is nothing to count. It was most likely
+            sent from the Gmail mobile app, or with tracking switched off for that email.
+          </p>
+        )}
       </header>
 
       <dl className="mb-8 grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-line smooth-shadow-ring-sm sm:grid-cols-4">
