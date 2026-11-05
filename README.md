@@ -137,7 +137,10 @@ Every hit — counted or ignored — is stored with a reason (`self_view`, `just
 ├── packages/
 │   └── shared/          Zod schemas, shared types, tick logic
 ├── scripts/
-│   └── generate-secrets.mjs
+│   ├── generate-secrets.mjs
+│   ├── setup-pubsub.sh
+│   └── setup.mjs        Guided self-hosting setup used by ./setup.sh
+├── setup.sh             One-command setup entry point
 ├── .github/             CI and repository metadata
 ├── package.json         Root scripts
 ├── pnpm-workspace.yaml
@@ -146,7 +149,25 @@ Every hit — counted or ignored — is stored with a reason (`self_view`, `just
 
 ## Self-hosting
 
-You need about 20–30 minutes, a Cloudflare account, a Google Cloud project, and Chrome. The design fits Cloudflare's free plan for personal use; check current limits before relying on it for a team.
+The manual path takes about 20–30 minutes; the guided setup takes about ten. You need a Cloudflare account, a Google Cloud project, and Chrome. The design fits Cloudflare's free plan for personal use; check current limits before relying on it for a team.
+
+### Guided setup
+
+If you would rather not run each step by hand, `./setup.sh` does the whole flow: it checks Node, pnpm and the `gcloud` CLI, signs you in to Cloudflare and Google Cloud, creates the D1 database and optional Pub/Sub pipeline, walks you through the OAuth client, builds the extension with a fixed ID, and deploys. It takes about ten minutes and is safe to re-run.
+
+```sh
+git clone https://github.com/ridh21/mail-tracker.git
+cd mail-tracker
+./setup.sh
+```
+
+Add `--dry-run` to walk through every step without creating or changing anything:
+
+```sh
+./setup.sh --dry-run
+```
+
+The manual steps below stay here for anyone who wants to do it by hand or understand what the script changes.
 
 ### Prerequisites
 
@@ -157,7 +178,7 @@ You need about 20–30 minutes, a Cloudflare account, a Google Cloud project, an
 | Cloudflare account | Workers, D1, Durable Objects, Cron |
 | Google Cloud project | Gmail API, OAuth consent screen, optional Pub/Sub |
 | Chrome | For the extension |
-| `gcloud` CLI | Only for the optional Pub/Sub setup |
+| `gcloud` CLI | Required by `./setup.sh`; manual setup only needs it for optional Pub/Sub |
 
 ### 1. Clone and install
 
