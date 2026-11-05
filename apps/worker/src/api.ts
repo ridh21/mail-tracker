@@ -128,7 +128,12 @@ api.post("/messages/:trackingId/sent", async (c) => {
 
   await upsertThread(c.env.DB, userId, input.threadId, row.subject, sentAt);
   const message = toMessage(row);
-  c.executionCtx.waitUntil(hubFor(c.env, userId).broadcast({ type: "message", message }));
+  const hub = hubFor(c.env, userId);
+  c.executionCtx.waitUntil(hub.broadcast({ type: "message", message }));
+  // The double tick arrives live when the bounce window closes, or sooner on arrival evidence.
+  if (row.tracking_id && row.sent_at && !row.delivered_at) {
+    c.executionCtx.waitUntil(hub.scheduleDelivery(row.id, row.sent_at, message.recipients));
+  }
   return c.json(message);
 });
 
