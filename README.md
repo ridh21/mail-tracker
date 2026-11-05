@@ -15,6 +15,12 @@ It's open source (MIT), free to self-host, and runs on your own Cloudflare accou
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
 [![Chrome MV3](https://img.shields.io/badge/Chrome-MV3-4285F4?logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/)
 
+<p align="center">
+  <a href="https://github.com/user-attachments/assets/9f7481a4-fd46-4498-8fb4-aaed6615a689">
+    <img src=".github/assets/mail-tracker-film.jpg" width="720" alt="Watch the Mail Tracker launch film (0:44)" />
+  </a>
+</p>
+
 > **Status:** v0.1. Working end to end and covered by tests, but early. The schema may change before v1. Issues and PRs are welcome.
 
 ## Contents
