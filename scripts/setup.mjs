@@ -232,6 +232,10 @@ function gcloud(args, opts) {
 }
 
 function openUrl(url) {
+  if (DRY_RUN) {
+    p.log.info(`${pc.dim("[dry run] would open:")} ${url}`);
+    return;
+  }
   const cmd = process.platform === "darwin" ? "open" : process.platform === "win32" ? "cmd" : "xdg-open";
   const args = process.platform === "win32" ? ["/c", "start", "", url] : [url];
   try {
@@ -451,6 +455,10 @@ async function stepCloudflare(state) {
 
   if (who?.loggedIn) {
     step("cloudflare", "auto", "You're already signed in to Cloudflare, so this is quick.");
+  } else if (DRY_RUN) {
+    step("cloudflare", "you", "Mail Tracker runs on your own Cloudflare account. The free plan is enough.");
+    p.log.info(`${pc.dim("[dry run] would open Cloudflare sign-in and wait for you")}`);
+    who = { loggedIn: true, email: "you@example.com", accounts: [{ id: "dry-run-account", name: "Dry run account" }] };
   } else {
     step("cloudflare", "you", "Mail Tracker runs on your own Cloudflare account. The free plan is enough.");
     checklist("Sign in to Cloudflare", [
@@ -465,7 +473,7 @@ async function stepCloudflare(state) {
     who = res.code === 0 ? JSON.parse(res.stdout) : null;
     if (!who?.loggedIn) fail("Still not signed in to Cloudflare.", res.out);
   }
-  p.log.success(`Signed in to Cloudflare as ${value(who.email ?? "your account")}`);
+  done(`Signed in to Cloudflare as ${value(who.email ?? "your account")}`, "sign in to Cloudflare");
 
   const accounts = who.accounts ?? [];
   if (!accounts.length) fail("This Cloudflare login has no accounts.");
@@ -498,25 +506,28 @@ async function stepCloudflare(state) {
 async function stepDatabase(state) {
   step("database", "auto", "Creates the database and deploys once to learn your Worker's public URL.");
 
-  const listed = quietly("Looking for your Mail Tracker database…", () => wrangler(["d1", "list", "--json"]));
-  if (listed.code !== 0) fail("Could not list your D1 databases.", listed.out);
-  let db = JSON.parse(listed.stdout || "[]").find((d) => d.name === DB_NAME);
-  if (db) {
-    p.log.success(`Using your existing database ${value(DB_NAME)}`);
-  } else if (DRY_RUN) {
-    p.log.info(`${pc.dim("[dry run] would create D1 database")} ${DB_NAME}`);
-    db = { uuid: "00000000-0000-0000-0000-000000000000" };
+  let db;
+  if (DRY_RUN) {
+    db = { uuid: state.databaseId ?? "00000000-0000-0000-0000-000000000000" };
+    p.log.info(`${pc.dim("[dry run] would reuse or create D1 database")} ${DB_NAME}`);
   } else {
-    // Run outside the repo so wrangler can't edit the committed config on its own.
-    const scratch = mkdtempSync(join(tmpdir(), "mail-tracker-"));
-    const created = quietly(`Creating the ${DB_NAME} database…`, () =>
-      exec(WRANGLER, ["d1", "create", DB_NAME], { cwd: scratch, env: wranglerEnv }),
-    );
-    rmSync(scratch, { recursive: true, force: true });
-    if (created.code !== 0) fail("Cloudflare did not create the database.", created.out);
-    db = JSON.parse(wrangler(["d1", "list", "--json"]).stdout || "[]").find((d) => d.name === DB_NAME);
-    if (!db) fail("The database was created but could not be found afterwards.");
-    p.log.success(`Created database ${value(DB_NAME)}`);
+    const listed = quietly("Looking for your Mail Tracker database…", () => wrangler(["d1", "list", "--json"]));
+    if (listed.code !== 0) fail("Could not list your D1 databases.", listed.out);
+    db = JSON.parse(listed.stdout || "[]").find((d) => d.name === DB_NAME);
+    if (db) {
+      p.log.success(`Using your existing database ${value(DB_NAME)}`);
+    } else {
+      // Run outside the repo so wrangler can't edit the committed config on its own.
+      const scratch = mkdtempSync(join(tmpdir(), "mail-tracker-"));
+      const created = quietly(`Creating the ${DB_NAME} database…`, () =>
+        exec(WRANGLER, ["d1", "create", DB_NAME], { cwd: scratch, env: wranglerEnv }),
+      );
+      rmSync(scratch, { recursive: true, force: true });
+      if (created.code !== 0) fail("Cloudflare did not create the database.", created.out);
+      db = JSON.parse(wrangler(["d1", "list", "--json"]).stdout || "[]").find((d) => d.name === DB_NAME);
+      if (!db) fail("The database was created but could not be found afterwards.");
+      p.log.success(`Created database ${value(DB_NAME)}`);
+    }
   }
   state.databaseId = db.uuid;
   writeProdConfig(state);
@@ -593,17 +604,22 @@ async function stepGoogle(state) {
     step("google", "you", "Google Cloud hosts the sign-in app that lets Mail Tracker read your Gmail. It's free.");
   }
   if (!account) {
-    checklist("Sign in to Google Cloud", [
-      "A browser window opens on Google's sign-in page.",
-      "Choose the Google account that should own the Mail Tracker project.",
-      `Click ${value("Allow")}, then come back to this terminal.`,
-    ]);
-    if (interactive("gcloud", ["auth", "login"]) !== 0) fail("Google Cloud sign-in did not finish.");
-    account = gcloud(["auth", "list", "--filter=status:ACTIVE", "--format=value(account)"]).stdout.trim().split("\n")[0];
-    if (!account) fail("Still not signed in to Google Cloud.");
+    if (DRY_RUN) {
+      p.log.info(`${pc.dim("[dry run] would open Google Cloud sign-in and wait for you")}`);
+      account = "you@example.com";
+    } else {
+      checklist("Sign in to Google Cloud", [
+        "A browser window opens on Google's sign-in page.",
+        "Choose the Google account that should own the Mail Tracker project.",
+        `Click ${value("Allow")}, then come back to this terminal.`,
+      ]);
+      if (interactive("gcloud", ["auth", "login"]) !== 0) fail("Google Cloud sign-in did not finish.");
+      account = gcloud(["auth", "list", "--filter=status:ACTIVE", "--format=value(account)"]).stdout.trim().split("\n")[0];
+      if (!account) fail("Still not signed in to Google Cloud.");
+    }
   }
   state.googleAccount = account;
-  p.log.success(`Signed in to Google Cloud as ${value(account)}`);
+  done(`Signed in to Google Cloud as ${value(account)}`, "sign in to Google Cloud");
 
   const options = [];
   if (state.gcpProject) options.push({ value: "keep", label: `Keep using ${state.gcpProject}`, hint: "from your last setup" });
@@ -612,11 +628,16 @@ async function stepGoogle(state) {
   const choice = guard(await p.select({ message: "Which Google Cloud project?", options }));
 
   if (choice === "existing") {
-    const listed = gcloud(["projects", "list", "--format=value(projectId)", "--sort-by=~createTime", "--limit=25"]);
-    const ids = listed.stdout.trim().split("\n").filter(Boolean);
-    state.gcpProject = ids.length
-      ? guard(await p.select({ message: "Pick the project", maxItems: 10, options: ids.map((id) => ({ value: id, label: id })) }))
-      : guard(await p.text({ message: "Project ID", validate: (v) => (v ? undefined : "Enter a project ID") }));
+    if (DRY_RUN) {
+      state.gcpProject = state.gcpProject ?? "your-existing-project";
+      p.log.info(`${pc.dim("[dry run] would use Google Cloud project")} ${state.gcpProject}`);
+    } else {
+      const listed = gcloud(["projects", "list", "--format=value(projectId)", "--sort-by=~createTime", "--limit=25"]);
+      const ids = listed.stdout.trim().split("\n").filter(Boolean);
+      state.gcpProject = ids.length
+        ? guard(await p.select({ message: "Pick the project", maxItems: 10, options: ids.map((id) => ({ value: id, label: id })) }))
+        : guard(await p.text({ message: "Project ID", validate: (v) => (v ? undefined : "Enter a project ID") }));
+    }
   } else if (choice === "new") {
     for (;;) {
       const id = `mail-tracker-${randomBytes(3).toString("hex")}`;
@@ -899,8 +920,12 @@ async function stepExtension(state) {
   if (build.code !== 0) fail("The extension did not build.", build.out);
 
   const manifestPath = join(EXT_OUTPUT, "manifest.json");
-  const key = existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath, "utf8")).key : undefined;
-  if (!key) fail("The built extension has no pinned key, so its ID can't be known in advance. Check apps/extension/wxt.config.ts.");
+  const manifestKey = existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath, "utf8")).key : undefined;
+  // A dry run can start from a fresh clone with no build output: read the pinned
+  // key from the config instead of failing.
+  const configKey = readFileSync(join(EXT_DIR, "wxt.config.ts"), "utf8").match(/\n\s*key:\s*"([^"]+)"/)?.[1];
+  const key = manifestKey ?? configKey;
+  if (!key) fail("No pinned extension key found, so its ID can't be known in advance. Check apps/extension/wxt.config.ts.");
   state.extensionId = extensionIdFromKey(key);
   saveState(state);
   done(
