@@ -5,6 +5,7 @@
   "description": "Read receipts for Gmail, drawn inside Gmail. Free, open source, and self-hosted on your own Cloudflare account.",
   "packageManager": "pnpm@10.33.0",
   "scripts": {
+    "setup:selfhost": "bash setup.sh",
     "dev:worker": "pnpm --filter @mail-tracker/worker dev",
     "dev:dashboard": "pnpm --filter @mail-tracker/dashboard dev",
     "dev:extension": "pnpm --filter @mail-tracker/extension dev",
@@ -16,6 +17,8 @@
     "secrets:generate": "node scripts/generate-secrets.mjs"
   },
   "devDependencies": {
+    "@clack/prompts": "^1.8.1",
+    "picocolors": "^1.1.1",
     "typescript": "5.9.3"
   }
 }

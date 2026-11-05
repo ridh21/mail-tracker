@@ -7,6 +7,10 @@ dist/
 # Real deployment values (database id, origins, allowlists). Copy wrangler.jsonc
 # and fill it in; deploy with `pnpm run deploy:prod`.
 wrangler.production.jsonc
+wrangler.production.backup.jsonc
+
+# Progress from ./setup.sh (non-secret values only).
+.setup-state.json
 
 # Local secrets — never commit these.
 .dev.vars
