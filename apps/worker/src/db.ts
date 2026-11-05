@@ -42,6 +42,7 @@ export interface MessageRow {
   click_count: number;
   first_open_at: number | null;
   last_open_at: number | null;
+  delivered_at?: number | null;
 }
 
 export interface EventRow {
@@ -107,8 +108,16 @@ export function toMessage(r: MessageRow, now = Date.now()): MessageSummary {
     clickCount: r.click_count,
     firstOpenAt: r.first_open_at,
     lastOpenAt: r.last_open_at,
+    deliveredAt: r.delivered_at ?? null,
     tick: deriveTick(
-      { tracked: r.tracking_id !== null, sentAt: r.sent_at, bouncedAt: r.bounced_at, openCount: r.open_count },
+      {
+        tracked: r.tracking_id !== null,
+        sentAt: r.sent_at,
+        bouncedAt: r.bounced_at,
+        openCount: r.open_count,
+        deliveredAt: r.delivered_at ?? null,
+        recipients,
+      },
       now,
     ),
   };

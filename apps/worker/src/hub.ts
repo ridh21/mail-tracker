@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
+import { deliveryWindowMs } from "@mail-tracker/shared";
 import type { DiscardReason, OpenSource, RealtimeEvent } from "@mail-tracker/shared";
 import { recomputeCounters, toEvent, toMessage, type EventRow, type MessageRow } from "./db";
 import type { AppEnv } from "./env";
@@ -64,6 +65,8 @@ export class UserHub extends DurableObject<AppEnv> {
       CREATE INDEX IF NOT EXISTS recent_hits_thread ON recent_hits(thread_id, at);
       CREATE INDEX IF NOT EXISTS recent_hits_message ON recent_hits(message_id, at);
     `);
+    // Bounce windows waiting to close; the alarm stamps them delivered.
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS delivery_due (message_id TEXT PRIMARY KEY, due_at INTEGER NOT NULL)`);
     // Answer keepalives without waking a hibernated object.
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
   }
@@ -122,6 +125,42 @@ export class UserHub extends DurableObject<AppEnv> {
     });
   }
 
+  /**
+   * A tracked message was sent: stamp it delivered when its bounce window
+   * closes (30 s for Gmail-only recipients, 3 min otherwise) and push the
+   * double tick live, unless arrival evidence or an open gets there first.
+   */
+  async scheduleDelivery(messageId: string, sentAt: number, recipients: string[]) {
+    const due = sentAt + deliveryWindowMs(recipients);
+    this.sql.exec(`INSERT OR REPLACE INTO delivery_due (message_id, due_at) VALUES (?, ?)`, messageId, due);
+    const current = await this.ctx.storage.getAlarm();
+    if (current === null || due < current) await this.ctx.storage.setAlarm(Math.max(due, Date.now() + 100));
+  }
+
+  override async alarm() {
+    const now = Date.now();
+    const due = this.sql
+      .exec<{ message_id: string; due_at: number }>(`SELECT message_id, due_at FROM delivery_due WHERE due_at <= ?`, now)
+      .toArray();
+    for (const d of due) {
+      await this.markDelivered(d.message_id, d.due_at);
+      this.sql.exec(`DELETE FROM delivery_due WHERE message_id = ?`, d.message_id);
+    }
+    const next = this.sql.exec<{ t: number | null }>(`SELECT MIN(due_at) AS t FROM delivery_due`).one().t;
+    if (next !== null) await this.ctx.storage.setAlarm(Math.max(next, now + 100));
+  }
+
+  /** Stamps delivered_at once (never over a bounce) and pushes the new tick. */
+  private async markDelivered(messageId: string, at: number) {
+    const row = await this.env.DB.prepare(
+      `UPDATE messages SET delivered_at = ?2
+       WHERE id = ?1 AND delivered_at IS NULL AND bounced_at IS NULL AND tracking_id IS NOT NULL RETURNING *`,
+    )
+      .bind(messageId, at)
+      .first<MessageRow>();
+    if (row) this.broadcast({ type: "message", message: toMessage(row) });
+  }
+
   ingestHit(hit: PendingHit) {
     return this.serial(() => this.processHit(hit));
   }
@@ -148,6 +187,13 @@ export class UserHub extends DurableObject<AppEnv> {
         meta.id,
       )
       .one().t;
+
+    // Apple Mail and mail-security gateways fetch images the moment mail lands:
+    // not an open, but real proof it arrived, so the tick turns double now.
+    if (hit.bot && hit.kind === "open" && (hit.source === "apple_mpp" || hit.source === "scanner")) {
+      await this.markDelivered(meta.id, hit.at);
+      this.sql.exec(`DELETE FROM delivery_due WHERE message_id = ?`, meta.id);
+    }
 
     let verdict = classifyOpen(hit, {
       sentAt: sentOrder,
@@ -199,7 +245,8 @@ export class UserHub extends DurableObject<AppEnv> {
         ? db
             .prepare(
               `UPDATE messages SET open_count = open_count + 1, first_open_at = COALESCE(first_open_at, ?2),
-                 last_open_at = MAX(COALESCE(last_open_at, 0), ?2) WHERE id = ?1 RETURNING *`,
+                 last_open_at = MAX(COALESCE(last_open_at, 0), ?2), delivered_at = COALESCE(delivered_at, ?2)
+               WHERE id = ?1 RETURNING *`,
             )
             .bind(meta.id, hit.at)
         : db.prepare(`UPDATE messages SET click_count = click_count + 1 WHERE id = ? RETURNING *`).bind(meta.id);

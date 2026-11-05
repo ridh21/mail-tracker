@@ -49,6 +49,8 @@ export interface MessageSummary {
   clickCount: number;
   firstOpenAt: number | null;
   lastOpenAt: number | null;
+  /** When it reached the recipient: arrival evidence, an open, or the bounce window closing. */
+  deliveredAt?: number | null;
   tick: Tick;
 }
 

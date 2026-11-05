@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { findTrackingIds } from "./index";
-import { DELIVERED_AFTER_MS, deriveTick } from "./ticks";
+import {
+  DELIVERED_AFTER_MS,
+  GMAIL_DELIVERED_AFTER_MS,
+  deliveryWindowMs,
+  deriveTick,
+} from "./ticks";
 
 describe("deriveTick", () => {
   const base = { tracked: true, sentAt: 1_000, bouncedAt: null, openCount: 0 };
@@ -15,6 +20,31 @@ describe("deriveTick", () => {
   });
   it("marks mail sent from other clients as untracked", () => {
     expect(deriveTick({ ...base, tracked: false })).toBe("untracked");
+  });
+
+  it("uses the stamped delivery time instead of the client timer", () => {
+    expect(deriveTick({ ...base, deliveredAt: 2_500 }, 2_600)).toBe("delivered");
+  });
+
+  it("settles Gmail-only mail at 30 seconds", () => {
+    const toGmail = { ...base, recipients: ["maya@gmail.com"] };
+    expect(deriveTick(toGmail, 1_000 + GMAIL_DELIVERED_AFTER_MS - 1)).toBe("sent");
+    expect(deriveTick(toGmail, 1_000 + GMAIL_DELIVERED_AFTER_MS)).toBe("delivered");
+  });
+});
+
+describe("deliveryWindowMs", () => {
+  it("waits 30 seconds when every recipient is on Gmail", () => {
+    expect(deliveryWindowMs(["maya@gmail.com", "sam@googlemail.com"])).toBe(GMAIL_DELIVERED_AFTER_MS);
+  });
+
+  it("waits 3 minutes when any recipient is elsewhere", () => {
+    expect(deliveryWindowMs(["maya@gmail.com", "sam@studio.co"])).toBe(DELIVERED_AFTER_MS);
+  });
+
+  it("waits 3 minutes when the recipient list is unknown", () => {
+    expect(deliveryWindowMs(undefined)).toBe(DELIVERED_AFTER_MS);
+    expect(deliveryWindowMs([])).toBe(DELIVERED_AFTER_MS);
   });
 });
 

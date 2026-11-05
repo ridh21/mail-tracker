@@ -1,4 +1,7 @@
-import { deriveTick, type MessageSummary, type ThreadStatus } from "@mail-tracker/shared";
+import { deriveTick, type MessageSummary, type ThreadStatus, type Tick } from "@mail-tracker/shared";
+
+/** How long the double tick shows before blue when an open arrives first. */
+const STEP_MS = 900;
 import { send } from "./protocol";
 
 type Listener = (status: ThreadStatus | null) => void;
@@ -30,9 +33,11 @@ export class StatusStore {
   private retryDelay = 500;
   private saveTimer: ReturnType<typeof setTimeout> | undefined;
   private lastFocusRefresh = 0;
+  /** The tick each thread row is currently showing. */
+  private shown = new Map<string, Tick>();
 
   constructor() {
-    setInterval(() => this.age(), 30_000);
+    setInterval(() => this.age(), 5_000);
     const refresh = () => {
       if (document.visibilityState !== "visible" || Date.now() - this.lastFocusRefresh < FOCUS_REFRESH_MS) return;
       this.lastFocusRefresh = Date.now();
@@ -64,7 +69,11 @@ export class StatusStore {
     set.add(fn);
 
     const cached = this.statuses.get(threadId);
-    if (cached) fn(this.aged(cached.value));
+    if (cached) {
+      const value = this.aged(cached.value);
+      if (value) this.shown.set(threadId, value.tick);
+      fn(value);
+    }
     if (!cached || Date.now() - cached.fetchedAt > STALE_MS) this.request(threadId);
 
     return () => {
@@ -141,9 +150,31 @@ export class StatusStore {
 
   private set(threadId: string, value: ThreadStatus | null) {
     this.statuses.set(threadId, { value, fetchedAt: Date.now() });
-    const shown = this.aged(value);
-    for (const fn of this.listeners.get(threadId) ?? []) fn(shown);
+    this.emit(threadId, this.aged(value));
     this.persistSoon();
+  }
+
+  /**
+   * Pushes a status to the rows showing it. An open proves the email arrived,
+   * so a jump straight from the single tick to blue shows the double tick
+   * first, briefly, in the order things actually happened.
+   */
+  private emit(threadId: string, value: ThreadStatus | null) {
+    const before = this.shown.get(threadId);
+    const listeners = this.listeners.get(threadId) ?? new Set<Listener>();
+    if (value?.tick === "opened" && (before === "sent" || before === "pending")) {
+      const step: ThreadStatus = {
+        ...value,
+        tick: "delivered",
+        messages: value.messages.map((m) => (m.tick === "opened" ? { ...m, tick: "delivered" } : m)),
+      };
+      this.shown.set(threadId, "delivered");
+      for (const fn of listeners) fn(step);
+      setTimeout(() => this.emit(threadId, this.aged(this.statuses.get(threadId)?.value ?? null)), STEP_MS);
+      return;
+    }
+    if (value) this.shown.set(threadId, value.tick);
+    for (const fn of listeners) fn(value);
   }
 
   private persistSoon() {
@@ -162,7 +193,14 @@ export class StatusStore {
     if (!value) return null;
     const messages = value.messages.map((m) => ({
       ...m,
-      tick: deriveTick({ tracked: Boolean(m.trackingId), sentAt: m.sentAt, bouncedAt: m.bouncedAt, openCount: m.openCount }),
+      tick: deriveTick({
+        tracked: Boolean(m.trackingId),
+        sentAt: m.sentAt,
+        bouncedAt: m.bouncedAt,
+        openCount: m.openCount,
+        deliveredAt: m.deliveredAt ?? null,
+        recipients: m.recipients,
+      }),
     }));
     return { ...value, messages, ...summarise(messages) };
   }
@@ -173,7 +211,7 @@ export class StatusStore {
       const next = this.aged(value)!;
       if (next.tick !== value.tick) {
         this.statuses.set(threadId, { value: next, fetchedAt: this.statuses.get(threadId)!.fetchedAt });
-        for (const fn of this.listeners.get(threadId) ?? []) fn(next);
+        this.emit(threadId, next);
       }
     }
   }

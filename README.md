@@ -48,7 +48,7 @@ It's open source (MIT), free to self-host, and runs on your own Cloudflare accou
 | :---: | --- | --- |
 | <img src="apps/extension/public/ticks/pending.svg" width="20" alt="Pending"> | **Sending** | The extension registered the email, but Gmail has not confirmed it yet. |
 | <img src="apps/extension/public/ticks/sent.svg" width="20" alt="Sent"> | **Sent** | Gmail confirmed the send and the message was linked to its Gmail id. |
-| <img src="apps/extension/public/ticks/delivered.svg" width="20" alt="Delivered"> | **Delivered** | No bounce arrived within 3 minutes. Email has no real delivery receipt, so this is the same heuristic every tracker uses. |
+| <img src="apps/extension/public/ticks/delivered.svg" width="20" alt="Delivered"> | **Delivered** | The email reached the recipient. Stamped on arrival evidence (Apple Mail or a mail scanner fetching the pixel), on the first open, or when the bounce window closes — 30 seconds for Gmail-only recipients, 3 minutes otherwise. |
 | <img src="apps/extension/public/ticks/opened.svg" width="20" alt="Opened"> | **Opened** | A human opened it. The count, timeline and ignored-hit log are on the dashboard. |
 | <img src="apps/extension/public/ticks/bounced.svg" width="20" alt="Bounced"> | **Bounced** | A delivery failure was found in the thread. |
 | <img src="apps/extension/public/ticks/tracking-off.svg" width="20" alt="Not tracked"> | **Not tracked** | The email was sent outside Gmail or with tracking switched off. Replies still sync. |
@@ -85,7 +85,7 @@ flowchart LR
 
 1. **On send.** The content script adds a 1×1 pixel to the top of the compose body (Gmail clips long messages, so the top matters), optionally rewrites links, and registers the message with the Worker. If the network drops, the extension keeps an outbox and retries for up to three days.
 2. **On open.** The recipient's mail client requests `/o/<trackingId>.gif`. The Worker rate-limits the hit, classifies the source, stores a daily-salted IP hash, and forwards the hit to that user's `UserHub` Durable Object. If the message is not registered yet, the raw hit is kept as an orphan and adopted when registration lands.
-3. **Classification.** The Durable Object serialises hits per user, decides whether the open counts, writes an `open_events` row to D1, updates the cached counters, and broadcasts a `message` / `open` / `revoke` event over WebSocket.
+3. **Classification.** The Durable Object serialises hits per user, decides whether the open counts, writes an `open_events` row to D1, updates the cached counters, and broadcasts a `message` / `open` / `revoke` event over WebSocket. The same object owns the delivery timer: it stamps `delivered_at` when arrival evidence appears, an open counts, or the bounce window closes, so the double tick arrives live instead of waiting on a client-side timer.
 4. **Replies and bounces.** When Pub/Sub is configured, the Worker calls Gmail `users.watch` for `INBOX` and `SENT` and Pub/Sub pushes changes to `/webhooks/gmail`. Without Pub/Sub, the hourly cron syncs recent tracked threads. New inbound messages become replies; delivery-status messages and `mailer-daemon` / `postmaster` senders become bounces.
 5. **Realtime UI.** The extension and dashboard keep a WebSocket open (with tickets, keepalives, and exponential backoff). The extension also polls `/api/events` on wake so it can notify about opens it missed while closed.
 
@@ -107,7 +107,7 @@ Every hit — counted or ignored — is stored with a reason (`self_view`, `just
 
 ### What this does not do
 
-- Email has no delivery receipt. “Delivered” means “sent, with no bounce after 3 minutes.”
+- Email has no delivery receipt. “Delivered” is inferred from arrival evidence, the first open, or a closed bounce window — it is strong evidence, not a guarantee.
 - Multiple recipients in one email are not attributed individually. An open means someone on the thread opened it.
 - Opening your own sent mail in the Gmail mobile app can count as an open, because the extension is not there to suppress it.
 - Gmail's image proxy hides location and device for Gmail readers.
@@ -336,7 +336,7 @@ Then redeploy:
 pnpm run deploy
 ```
 
-Send yourself an email. The tick should appear immediately, turn to delivered after 3 minutes if there is no bounce, and turn blue when the email is opened.
+Send yourself an email. The tick should appear immediately, turn to delivered after 30 seconds for Gmail recipients (3 minutes for other domains) or sooner if the recipient's client fetches the pixel, and turn blue when the email is opened.
 
 ## Local development
 
@@ -528,7 +528,7 @@ If you find a vulnerability, please **do not open a public issue**. Use GitHub's
 ## Known limitations
 
 - Gmail web + Chrome only. No Firefox/Safari extension and no mobile app.
-- “Delivered” is a 3-minute no-bounce heuristic, not a real receipt.
+- “Delivered” is inferred from arrival evidence, the first open, or a closed bounce window (30 seconds for Gmail, 3 minutes otherwise), not a real receipt.
 - To, Cc and Bcc share one pixel. An open means “someone on this email”, never a specific recipient; per-person attribution would require sending each recipient a separate tracked copy.
 - Own opens from Gmail mobile can count, because the extension is not present there.
 - Gmail’s image proxy hides location and device for Gmail readers.
