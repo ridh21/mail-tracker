@@ -1,17 +1,20 @@
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query";
-import { StrictMode, useEffect } from "react";
+import { StrictMode, Suspense, lazy, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { Shell } from "./components/Shell";
 import { ApiError, endpoints } from "./lib/api";
 import { startRealtime } from "./lib/realtime";
 import { usePath } from "./lib/router";
-import { Insights } from "./pages/Insights";
 import { Landing } from "./pages/Landing";
 import { Login } from "./pages/Login";
-import { MessagePage } from "./pages/Message";
 import { Sent } from "./pages/Sent";
-import { SettingsPage } from "./pages/Settings";
 import "./styles.css";
+
+// Secondary views load on navigation, so the Sent list and the landing page
+// ship without the timeline, chart and settings code.
+const MessagePage = lazy(() => import("./pages/Message").then((m) => ({ default: m.MessagePage })));
+const Insights = lazy(() => import("./pages/Insights").then((m) => ({ default: m.Insights })));
+const SettingsPage = lazy(() => import("./pages/Settings").then((m) => ({ default: m.SettingsPage })));
 
 const client = new QueryClient({
   defaultOptions: {
@@ -53,7 +56,7 @@ function App() {
 
   return (
     <Shell me={me.data} path={path}>
-      {page}
+      <Suspense fallback={<div className="h-64" aria-busy />}>{page}</Suspense>
     </Shell>
   );
 }

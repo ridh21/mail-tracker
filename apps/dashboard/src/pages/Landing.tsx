@@ -7,6 +7,7 @@ import {
   ChatCircle,
   CursorClick,
   Eye,
+  GithubLogo,
   LockKey,
   PaperPlaneTilt,
   ShieldCheck,
@@ -176,6 +177,13 @@ function Hero() {
               <ShieldCheck size={13} className="text-ok" />
               Self-hosted and private
             </span>
+            <a
+              href="https://github.com/ridh21/mail-tracker"
+              className="flex items-center gap-1.5 transition-colors hover:text-fg"
+            >
+              <GithubLogo size={13} />
+              Free and open source
+            </a>
             <span className="flex items-center gap-1.5">
               <LockKey size={13} />
               Approved Google accounts only
@@ -531,7 +539,8 @@ function PrivacyCta() {
             </h2>
             <p className="mt-4 max-w-xl text-sm leading-relaxed text-white/60">
               Mail Tracker runs entirely on your Cloudflare account. IPs are hashed daily, tokens are encrypted with
-              AES-256-GCM, and tracking can be switched off for any email.
+              AES-256-GCM, and tracking can be switched off for any email. It is MIT-licensed and free to self-host:
+              no seats, no subscription, no company in the middle.
             </p>
             <div className="mt-7 flex flex-wrap items-center gap-4">
               <a
@@ -546,8 +555,15 @@ function PrivacyCta() {
                   className="transition-transform duration-200 group-hover:translate-x-0.5"
                 />
               </a>
+              <a
+                href="https://github.com/ridh21/mail-tracker"
+                className="press flex h-10 items-center gap-2 rounded-md border border-white/15 px-3.5 text-sm text-white/80 transition-colors hover:border-white/30 hover:text-white"
+              >
+                <GithubLogo size={15} />
+                Read the source
+              </a>
               <span className="font-mono text-[9px] uppercase tracking-[0.08em] text-white/40">
-                Approved accounts only
+                MIT · approved accounts only
               </span>
             </div>
           </div>
@@ -566,7 +582,7 @@ function Footer() {
           Mail Tracker
         </div>
         <p className="font-mono text-[9px] uppercase tracking-[0.08em] text-faint sm:ml-2">
-          Read receipts for Gmail · self-hosted on Cloudflare
+          Read receipts for Gmail · open source · MIT
         </p>
         <nav className="flex items-center gap-4 text-xs text-muted sm:ml-auto">
           <a href="#features" className="nav-link hover:text-fg">

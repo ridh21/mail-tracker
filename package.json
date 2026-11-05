@@ -2,6 +2,7 @@
   "name": "mail-tracker",
   "private": true,
   "type": "module",
+  "description": "Read receipts for Gmail, drawn inside Gmail. Free, open source, and self-hosted on your own Cloudflare account.",
   "packageManager": "pnpm@10.33.0",
   "scripts": {
     "dev:worker": "pnpm --filter @mail-tracker/worker dev",

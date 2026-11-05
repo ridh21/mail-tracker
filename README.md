@@ -4,20 +4,23 @@
 
 # Mail Tracker
 
-**WhatsApp-style read receipts for Gmail.** Every email you send gets a tick right inside Gmail — sent, delivered, opened, bounced — plus replies and optional link clicks. Self-hosted on Cloudflare, no third-party tracking service, and you own all of the data.
+**Read receipts for Gmail, drawn inside Gmail.**
+
+You send an email and then you wait. Mail Tracker replaces that wait with a tick: sent, delivered, opened, bounced. When someone opens your email, you know within a second, even with Gmail closed.
+
+It's open source (MIT), free to self-host, and runs on your own Cloudflare account. No sign-up, no third-party tracker, no analytics service reading your mail.
 
 [![CI](https://github.com/ridh21/mail-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/ridh21/mail-tracker/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-black.svg)](LICENSE)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
 [![Chrome MV3](https://img.shields.io/badge/Chrome-MV3-4285F4?logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 
-> **Status:** v0.1 — working end to end and covered by tests, but still early. APIs and schema may change before v1. Issues and PRs are welcome.
+> **Status:** v0.1. Working end to end and covered by tests, but early. The schema may change before v1. Issues and PRs are welcome.
 
 ## Contents
 
 - [The ticks](#the-ticks)
-- [Features](#features)
+- [What it does](#what-it-does)
 - [How it works](#how-it-works)
 - [Tech stack](#tech-stack)
 - [Repository layout](#repository-layout)
@@ -44,19 +47,22 @@
 | <img src="apps/extension/public/ticks/bounced.svg" width="20" alt="Bounced"> | **Bounced** | A delivery failure was found in the thread. |
 | <img src="apps/extension/public/ticks/tracking-off.svg" width="20" alt="Not tracked"> | **Not tracked** | The email was sent outside Gmail or with tracking switched off. Replies still sync. |
 
-Ticks appear in the Gmail thread list, on each sent message, in the extension popover, and on the self-hosted dashboard. A desktop notification fires when someone opens an email or replies, even if Gmail is closed.
+Ticks show up in the Gmail thread list, on each sent message, in the extension popover, and on the dashboard. Opens and replies raise a desktop notification, and the WebSocket that delivers them keeps working while Gmail is closed.
 
-## Features
+## What it does
 
-- **Ticks inside Gmail** — no separate inbox or browser tab required.
-- **Realtime opens** — pixel hits go through a per-user Durable Object and arrive over WebSocket in about a second.
-- **Replies and bounces** — Gmail API history sync (via Pub/Sub push or an hourly cron) picks up inbound messages and delivery failures.
-- **False-open filtering** — your own views, quoted pixels, Apple Mail Privacy Protection, security scanners, repeat fetches, and just-sent hits are filtered out or revoked.
-- **Compose-level control** — a toolbar button switches tracking off for one email; Settings switches it off by default.
-- **Optional click tracking** — links can be rewritten through HMAC-signed redirects. Off by default because rewritten links can affect deliverability.
-- **Dashboard** — Sent list with search and filters, per-message timeline and open log, insights (open rate, reply rate, time to first open, daily opens, hour-of-week heatmap), and session management.
-- **Dark mode and a public landing page** — the dashboard ships a theme toggle and a `/welcome` page.
-- **Self-hosted and free-tier friendly** — Cloudflare Workers, D1, Durable Objects, Cron, and Workers Assets; Google Cloud and InboxSDK are free for personal use.
+**Tracks opens, not just sends.** A 1×1 pixel goes in at the top of the body, where Gmail's clipping can't reach it. Every hit is classified before it counts: your own views, quoted pixels from earlier messages, Apple's Mail Privacy Protection prefetch, security scanners and repeat fetches are logged but ignored.
+
+**Filters the noise.** The dashboard keeps every hit, counted or not, with the reason it was skipped. When an open turns out to be your own view, it is revoked and the notification disappears.
+
+**Keeps replies and bounces in sync.** Pub/Sub push picks up mailbox changes within seconds; without it, an hourly poll does the same work. Inbound messages become replies, delivery failures become bounces.
+
+**Gives you the controls.** A toolbar button disables tracking for one email. Settings disables it by default. Link tracking — HMAC-signed redirects through your Worker — is off unless you turn it on, because rewritten links can hurt deliverability.
+
+**Shows the history.** A Sent list with search and filters, a per-message timeline of opens and replies, and an insights page with open rate, reply rate, time to first open, daily opens and an hour-of-week heatmap.
+
+**Runs anywhere you can run a Worker.** Cloudflare Workers, D1, Durable Objects, Cron and Workers Assets. The dashboard is a React SPA served by the same Worker. The extension is Chrome MV3.
+
 
 ## How it works
 
